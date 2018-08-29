@@ -707,7 +707,6 @@ module.exports = (app) => {
                 res.json(err)
             })
     })
-
     app.post('/checkDate', (req, res) => {
         var day = req.body.day;
         var range_time = req.body.range_time;
@@ -721,8 +720,6 @@ module.exports = (app) => {
                 res.json(err)
             })
     })
-
-
     app.post('/api/wallet/getWalletHost', (req, res) => {
         var token = req.body.token;
         var hostId = req.body.id;
