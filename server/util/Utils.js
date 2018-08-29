@@ -200,7 +200,7 @@ var exchangeMoneyWithoutToken = (receiveId, sendId, amount) =>
                 reject(err);
             })
     })
-exports.chageMoney = (sendId, receiveId, amount) =>
+var chageMoney = (sendId, receiveId, amount) =>
     new Promise((resolve, reject) => {
         var receiveWallet, sendWallet;
         wallet.findOne({ where: { ownerId: sendId } })
@@ -240,6 +240,7 @@ exports.chageMoney = (sendId, receiveId, amount) =>
                 reject(err);
             })
     })
+exports.chageMoney = chageMoney;
 exports.reCallAllMoneyOfLoan = (loanId) =>
     new Promise((resolve, reject) => {
         var hostTemp;
@@ -387,6 +388,7 @@ exports.updateFullLoan = (loanId, total) =>
                     var range_time = loanTemp.range_time;
                     for (var j = 1; j <= range_time; j++) {
                         let day;
+                        console.log('jUtil yy', j)
                         promisesInterest.push(
                             dayAfterSomeMonth(loanTemp.start_time, j)
                                 .then(result => {
@@ -495,3 +497,59 @@ var dayAfterSomeMonth = (day, range_time) =>
         console.log('result', result)
         resolve({ result: result })
     })
+exports.getInterestNearestOfLend = (lendId) =>
+    new Promise((resolve, reject) => {
+        var datenow = '' + new Date().getFullYear() + (new Date().getMonth() + 2) + new Date().getDate();
+        lend.findById(lendId)
+            .then(lendResult => {
+                return interest.find({ where: { lendId: lendResult.id, status: 0 } })
+            })
+            .then(interests => {
+                if (interests.length > 0) {
+                    var interestMin = interests[0]
+                    interests.forEach(interestItem => {
+                        var dateInterest = interestItem.date.subString(6, 9) + interestItem.date.subString(3, 4)
+                            + interestItem.date.subString(0, 1);
+                        if (dateInterest <= datenow) {
+                            resolve(interestItem);
+                        }
+                    })
+                } else {
+                    var temp = []
+                    resolve(temp)
+                }
+            })
+            .catch(err => {
+                reject(err)
+            })
+    })
+exports.payInterest = (loanId) => {
+    var hostTemp, promises = [];
+    loan.findById(loanId)
+        .then(loanResult => {
+            return host.findOne({ where: { loanId: loanResult.id } })
+        })
+        .then(host => {
+            hostTemp = host
+            return lend.find({ where: { loanId: loanId } })
+        })
+        .then(lends => {
+            lends.forEach(lendItem => {
+                promises.push(chageMoney(hostTemp.id, lendItem.investorId)
+                    .then(result => {
+                        console.log(result)
+                    })
+                    .catch(err => {
+                        reject(err)
+                    })
+                )
+            })
+            return Q.all(promises)
+        })
+        .then(()=>{
+            resolve('success')
+        })
+        .catch(err=>{
+            reject(err)
+        })
+}

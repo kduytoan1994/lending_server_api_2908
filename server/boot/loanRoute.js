@@ -9,6 +9,7 @@ module.exports = (app) => {
     const interest = app.models.interest;
     const agency = app.models.agency;
     const lend = app.models.lending;
+    const wallet = app.models.wallet;
     const interest_money = app.models.interest_money;
     app.post('/api/loan/addLoan', (req, res) => {
         var interest;
@@ -433,52 +434,11 @@ module.exports = (app) => {
             })
     })
 
-    app.post('/api/lend/payInterest', (req, res) => {
-        var token = req.body.token;
-        var loanId = req.body.loanId;
-        var hostTemp, interestTemp;
-        var promise = [];
-        loan.findById(loanId)
-            .then(loanResult => {
-                return host.findById(loanResult.hostId)
-            })
-            .then(hostResult => {
-                hostTemp = hostResult;
-                return lend.find({ where: { loanId: loanResult.id } })
-            })
-            .then(lends => {
-                var money = 0;
-                lends.forEach(lendItem => {
-                    promises.push(interest.find({ where: { lendId: lendItem.id } })
-                        .then(interests => {
-                            interests.forEach(interestItem => {
-                                money += interestItem.money
-                            })
-                            return util.chageMoney(hostTemp.id, lendItem.investorId, money)
-                        })
-                        .then(result => {
-                            console.log(result)
-                        })
-                    )
-                })
-                return Q.all(promises)
-            })
-            .then(() => {
-                var response = new CommonResponse("success", "", "payInterest success")
-                console.log("response", response)
-                res.json(response)
-            })
-            .catch(err => {
-                var response = new CommonResponse("fail", "", err)
-                console.log("response", response)
-                res.json(response)
-            })
-
-    })
     app.post('/api/loan/interestPay', (req, res) => {
         var token = req.body.token;
         var loanId = req.body.id;
-        var hostTemp, interestTemp;
+        var hostTemp, interestTemp, lendtemps;
+        var money = 0;
         var promises = [];
         loan.findById(loanId)
             .then(loanResult => {
@@ -489,24 +449,35 @@ module.exports = (app) => {
                 return lend.find({ where: { loanId: loanResult.id } })
             })
             .then(lends => {
-                var money = 0;
                 lends.forEach(lendItem => {
-                    promises.push(interest.find({ where: { lendId: lendItem.id } })
-                        .then(interests => {
-                            interests.forEach(interestItem => {
-                                money += interestItem.money
+                    promises.push(
+                        util.getInterestNearestOfLend(lendItem.id)
+                            .then(interestResult => {
+                                money += interestResult.money
                             })
-                            return util.chageMoney(hostTemp.id, lendItem.investorId, money)
-                        })
-                        .then(result => {
-                            console.log(result)
-                        })
+                            .catch(err => {
+                                var response = new CommonResponse("fail", "", err)
+                                console.log("response", response)
+                                res.json(response)
+                            })
                     )
                 })
                 return Q.all(promises)
             })
             .then(() => {
-                var response = new CommonResponse("success", "", "payInterest success")
+                return wallet.findOne({ where: { ownerId: hostTemp.id } });
+            })
+            .then(wallet => {
+                if (wallet.balance < money) {
+                    var response = new CommonResponse("not enough money", "", "not enough money")
+                    console.log("response", response)
+                    res.json(response)
+                } else {
+                    return util.payInterest(loanId)
+                }
+            })
+            .then(result => { 
+                var response = new CommonResponse("success", "", "success")
                 console.log("response", response)
                 res.json(response)
             })
@@ -517,19 +488,4 @@ module.exports = (app) => {
             })
 
     })
-
-    var getInterestNearestOfLoan = (loanId) =>
-        new Promise((resolve, reject) => {
-            var datenow = new Date().
-            loan.findById(loanId)
-                .then(loan => {
-                    return interest.find({ where: { loanId: loan.id } })
-                })
-                .then(interests => {
-                    interests.forEach(interestItem => {
-                        
-                    })
-                })
-        })
-    
 }
